@@ -1,0 +1,574 @@
+<!doctype html>
+<html>
+	<head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+		<title>
+            Pralnica
+        </title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+	</head>
+    <body>
+        <div class="main container d-flex flex-column justify-content-center">
+            <div class="header d-flex justify-content-center align-items-center">
+                <h2>Bluetooth bralnik naprave</h2>
+            </div>
+            <div class="middle d-flex justify-content-center align-items-center">
+                <button id="find-devices" onclick="onButtonClick()">IŠČI NAPRAVO</button>
+            </div>
+            <div class="washing-state d-flex justify-content-center align-items-center flex-column">
+                <div id="washer">
+                    <div class="top"></div>
+                    <div class="bod">
+                      <div class="upper">
+                        <div class="u1"></div>
+                        <div class="u2"></div>
+                        <div class="u3"></div>
+                        <div class="u4">
+                          <table border="0">
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+
+                            <tr>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                            </tr>
+                          </table>
+                        </div>
+
+                        <div class="u5"></div>
+
+                      </div>
+
+                      <div class="circle_out"></div>
+                      <div class="circle_inn"></div>
+
+                      <div class="box"></div>
+                    </div>
+
+                  </div>
+                <h5 id="washing-type"></h5>
+            </div>
+            <div id="logger" class="logging flex-column d-flex justify-content-center align-items-center">  
+                <div class="output-header align-items-center d-flex justify-content-center flex-row">
+                    <h2>Live output</h2>
+                    <button id="display-output" onclick="toggleOutput()">Skrij</button>
+                </div>
+                <div id="output">
+                    <div id="content"></div>
+                    <div id="status"></div>
+                    <pre id="log"></pre>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-center" style="display:none!important;">poglej <br > <a href="https://googlechrome.github.io/samples/web-bluetooth/read-characteristic-value-changed.html">https://googlechrome.github.io/samples/web-bluetooth/read-characteristic-value-changed.html</a></div>
+    </body>
+    <style>
+        h2, a, body {
+            margin: 0;
+        }
+        .header h2 {
+            text-align: center;
+            padding: 20px;
+            font-family: 'Arimo', sans-serif;
+            text-transform: uppercase;
+        }
+        .header {
+            border-bottom: 1px solid black;
+        }
+        .middle {
+            padding: 30px 20px 0 20px;
+        }
+        .output-header button {
+            padding: 0 5px;
+            background: none;
+            color: beige;
+            color: #212529;
+            border-radius: 0px;
+            font-family: 'Arimo', sans-serif;
+            text-transform: uppercase;
+            font-size: 20px;
+            outline: none;
+            background: #f3f3f3;
+            border: none;
+            margin-left: 50px;
+        }
+        .output-header {
+            border-bottom: 1px solid darkblue;
+        }
+        .middle button  {
+            outline: none;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 0.5rem;
+            background: #002654;
+            color: #dfdfdf;
+        }
+        .middle button:hover {
+            background-color: #29558b;
+        }
+        .logging h2 {
+            font-family: 'Arimo', sans-serif;
+            font-size: 20px;
+            text-transform: uppercase;
+        }
+        #log {
+            max-height: 1000px;
+            transition: .5s linear all;
+            background: #f3f3f3;
+            width: 100%;
+            opacity: 1;
+            transform: scaleY(1.0);
+        }
+        #log.hide {
+            opacity: 0;
+            transform: scaleY(0);
+        }
+        #output {
+            margin-top: 30px;
+            width: 648px;
+            text-align: center;
+        }
+
+        #logger {
+            margin-top: 20px;
+        }
+        #washing-type {
+            text-transform: uppercase;
+            font-family: 'Arimo', sans-serif;
+            margin-top: 20px;
+        }
+        pre {
+            white-space: pre-wrap;       /* Since CSS 2.1 */
+            white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+            white-space: -pre-wrap;      /* Opera 4-6 */
+            white-space: -o-pre-wrap;    /* Opera 7 */
+            word-wrap: break-word;       /* Internet Explorer 5.5+ */
+        }
+
+        @media only screen and (max-width: 648px) {
+          #output {
+            width: 100%;
+          }
+        }
+    </style>
+    <script type="text/javascript">
+        Notification.requestPermission( function(status) {
+          console.log('Notification permission status: ', status)
+        })
+        function displayNotification( status ) {
+          if (Notification.permission == 'granted') {
+            navigator.serviceWorker.getRegistration().then(function(reg) {
+              var options = {
+                body: status,
+                vibrate: [100, 50, 100],
+                data: {
+                  dateOfArrival: Date.now(),
+                  primaryKey: 1
+                }
+              };
+              reg.showNotification('iOpran', options);
+            });
+          }
+        }
+        const washingStates = {
+            "115": "spin",
+            "105": "idle",
+            "117": "undefined",
+            "119": "wash"
+        }
+        let prevWash = ""; 
+        interval = setInterval(changeStates, 5000);
+        function changeStates() {
+            const vals = Object.keys(washingStates);
+            const size = vals.length;
+            const rand = Math.floor(Math.random() * size);
+            setWashingState(vals[rand]);
+        }
+        function setWashingState(pos) {
+            const state = washingStates[pos];
+            document.querySelector("#washing-type").textContent = state;
+            if (prevWash !== "") {
+                document.querySelector(".circle_out").classList.remove(prevWash);
+                document.querySelector(".circle_out").classList.add(state);
+                displayNotification(state)
+            }
+            prevWash = state;
+        }
+        let connected = false;
+        let bluetoothDevice;
+        let batteryLevelCharacteristic;
+        var ChromeSamples = {
+            log: function() {
+            var line = Array.prototype.slice.call(arguments).map(function(argument) {
+                return typeof argument === 'string' ? argument : JSON.stringify(argument);
+            }).join(' ');
+
+            document.querySelector('#log').textContent += line + '\n';
+            },
+
+            clearLog: function() {
+            document.querySelector('#log').textContent = '';
+            },
+
+            setStatus: function(status) {
+            document.querySelector('#status').textContent = status;
+            },
+
+            setContent: function(newContent) {
+            var content = document.querySelector('#content');
+            while(content.hasChildNodes()) {
+                content.removeChild(content.lastChild);
+            }
+            content.appendChild(newContent);
+            }
+
+        };
+        let lastValue;
+        // 115 - spin, 105 - idle, 117 - undefined, 119 - wash
+        function onPralnicaValueChanged(event) {
+            const value = event.target.value.getUint8(0);
+            if (lastValue !== undefined) {
+                if (lastValue !== value) {
+                    lastValue = value;
+                    log('> Prebrana vrednost ' + value);
+                }
+            }
+            else {
+                lastValue = value;
+            } 
+        }
+
+        function onButtonClick() {
+            if (!connected) {
+                log('Iskanje bluetooth naprave...');
+                navigator.bluetooth.requestDevice(
+                    {filters: [{services: ['9308c608-3189-47ad-abaa-f32e0b4fadc2']}],
+                    acceptAllDevices: false,
+                    optionalServices: ['9308c608-3189-47ad-abaa-f32e0b4fadc2']})
+                .then(device => {
+                    log('Povezovanje do naprave...');
+                    bluetoothDevice = device;
+                    return device.gatt.connect();
+                })
+                .then(server => {
+                    log('Pridobivanje storitve...');
+                    return server.getPrimaryService('9308c608-3189-47ad-abaa-f32e0b4fadc2');
+                })
+                .then(service => {
+                    log('Pridobivanje karakteristike pralnice...');
+                    return service.getCharacteristic('4789208a-ae92-11ec-b909-0242ac120002');
+                })
+                .then(characteristic => {
+                    batteryLevelCharacteristic = characteristic;
+                    batteryLevelCharacteristic.addEventListener('characteristicvaluechanged', onPralnicaValueChanged);
+                    log('Branje vrednosti pralnega stroja...');
+                })
+                .then(_ => {
+                    //log('> Prebrana vrednost ' + batteryLevelCharacteristic.readValue());
+                    batteryLevelCharacteristic.startNotifications();
+                    connected = true;
+                    document.querySelector("button#find-devices").textContent = "ODSTRANI NAPRAVO";
+                })
+                .catch(error => {
+                    log('Napaka! ' + error);
+                })
+                /*.then(value => {
+                    var batteryLevel = value.getUint8(0);
+                    log('> Prebrana vrednost ' + batteryLevel + '.');
+                })
+                .catch(error => {
+                    log('Napaka! ' + error);
+                })*/;
+            }
+            else {
+                if (batteryLevelCharacteristic) {
+                    batteryLevelCharacteristic.removeEventListener('characteristicvaluechanged',
+                        onPralnicaValueChanged);
+                    batteryLevelCharacteristic = null;
+                }
+                bluetoothDevice.gatt.disconnect();
+                bluetoothDevice = null;
+                connected = false;
+                log('> Bluetooth naprava je resetirana.');
+                document.querySelector("button#find-devices").textContent = "IŠČI NAPRAVO";
+            }
+        }
+        
+        document.querySelector('button#find-devices').addEventListener('click', function() {
+            if (isWebBluetoothEnabled()) {
+                ChromeSamples.clearLog();
+                onButtonClick();
+            }
+        });
+        
+        log = ChromeSamples.log;
+
+        function isWebBluetoothEnabled() {
+            if (navigator.bluetooth) {
+                return true;
+            } else {
+                ChromeSamples.setStatus('Web Bluetooth API is not available.\n' +
+                    'Please make sure the "Experimental Web Platform features" flag is enabled.');
+                return false;
+            }
+        }
+        
+        var showOutput = true;
+        function toggleOutput() {
+            if (showOutput) {
+                document.querySelector("#log").classList.add("hide");
+                document.getElementById("display-output").textContent = "Prikaži";
+            }
+            else {
+                document.querySelector("#log").classList.remove("hide");
+                document.getElementById("display-output").textContent = "Skrij";
+            }
+            showOutput = !showOutput;
+        }
+
+        
+    </script>
+    <style>
+        #washer {
+            margin-top: 30px;
+          position: relative;
+          border: 2px solid black;
+        }
+
+        .top {
+          width: 200px;
+          height: 8px;
+          background-color: white;
+          border-bottom: 2.5px solid #131447;
+        }
+
+        .bod {
+          width: 200px;
+          height: 260px;
+          background-color: white;
+        }
+
+        .upper {
+          width: 100%;
+          height: 40px;
+          /* border-bottom:2px solid gray;*/
+        }
+
+        .u1 {
+          width: 55px;
+          height: 40px;
+          border-bottom: 2px solid silver;
+          border-right: 2px solid silver;
+          position: absolute;
+        }
+
+        .u1:before {
+          content: " ";
+          position: absolute;
+          width: 30px;
+          height: 5px;
+          background: -webkit-linear-gradient(left, silver 55%, white);
+          top: 30px;
+          left: 20px;
+        }
+
+        .u2 {
+          width: 18px;
+          height: 24px;
+          background: -webkit-linear-gradient(
+            gray 0px 3px,
+            white 3px 6px,
+            gray 6px 9px,
+            white 9px 12px,
+            gray 12px 15px,
+            white 15px 18px,
+            gray 18px 21px,
+            white 21px 24px
+          );
+          position: absolute;
+          left: 62px;
+          top: 22px;
+        }
+
+        .u3 {
+          width: 30px;
+          height: 40px;
+          border-radius: 0px 0px 40px 40px;
+          background-color: #11163f;
+          position: absolute;
+          left: 85px;
+        }
+
+        .u3:before {
+          content: " ";
+          position: absolute;
+          width: 22px;
+          height: 22px;
+          border-radius: 22px;
+          background-color: #e8e7de;
+          top: 15px;
+          left: 4px;
+        }
+
+        .u3:after {
+          content: " ";
+          position: absolute;
+          width: 18px;
+          height: 7px;
+          background-color: #293166;
+          top: 5px;
+          left: 6px;
+        }
+
+        .u4 {
+          position: relative;
+          float: right;
+          right: 27px;
+          top: 13px;
+        }
+
+        td {
+          width: 12px;
+          height: 1px;
+          background-color: gray;
+        }
+
+        tr:nth-child(5) > td {
+          height: 2px;
+          background-color: white;
+          border: 1px solid gray;
+        }
+
+        .u5 {
+          width: 15px;
+          height: 3px;
+          background-color: #1e275d;
+          left: 180px;
+          position: relative;
+          top: 30px;
+          animation-name: color_change;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          animation-duration: 1s;
+        }
+
+        @keyframes color_change {
+          0% {
+            background-color: #1e275d;
+          }
+          50% {
+            background-color: #1e275d;
+          }
+          51% {
+            background-color: red;
+          }
+          100% {
+            background-color: red;
+          }
+        }
+          .circle_out {
+              width: 160px;
+              height: 160px;
+              border-radius: 150px;
+              background: -webkit-linear-gradient(left, #121250, #263d71, #344b75);
+              position: relative;
+              top: 20px;
+              left: 20px;
+              /*animation-name: round;
+              animation-timing-function: linear;
+              animation-iteration-count: infinite;
+              animation-duration: 1s;*/
+            }
+
+            .circle_out.spin {
+                animation-name: round;
+              animation-iteration-count: infinite;
+              animation-duration: 1.3s;
+            }
+
+            .circle_out.wash {
+                animation-name: round;
+                animation-timing-function: linear;
+              animation-iteration-count: infinite;
+              animation-duration: 2s;
+            }
+
+            @keyframes round {
+              0% {
+                transform: rotate(0deg);
+              }
+              100% {
+                transform: rotate(2000deg);
+              }
+            }
+
+            .circle_out:before {
+              content: " ";
+              position: absolute;
+              width: 156px;
+              height: 156px;
+              border-radius: 156px;
+              background: radial-gradient(transparent 0px 60px, white 60px 156px);
+              left: 2.2px;
+              top: 2.1px;
+            }
+
+            .circle_out:after {
+              content: " ";
+              position: absolute;
+              width: 120px;
+              height: 120px;
+              border-radius: 120px;
+              background-color: transparent;
+              left: 20.5px;
+              top: 20.5px;
+              box-shadow: inset #2d4473 0px 0px 5px 10px;
+            }
+
+            .circle_inn {
+              position: absolute;
+              width: 120px;
+              height: 120px;
+              border-radius: 120px;
+              /*background: -webkit-repeating-linear-gradient(
+                top left,
+                transparent 0px 40px,
+                white 40px 80px
+              );*/
+              opacity: 0.1;
+              left: 41px;
+              top: 90px;
+              box-shadow: inset 7px 7px #383e78;
+            }
+
+            .box {
+              width: 40px;
+              height: 20px;
+              border-radius: 2px;
+              border: 1.5px solid silver;
+              float: right;
+              position: relative;
+              top: 12px;
+              right: 8px;
+            }
+    </style>    
+</html>
